@@ -1,0 +1,66 @@
+# Publie automatiquement le site sur GitHub Pages à chaque modification de la branche « main ».
+# Réglage unique à faire dans GitHub : Settings → Pages → Source : « GitHub Actions ».
+# Vos réglages (numéro WhatsApp, etc.) : Settings → Secrets and variables → Actions → onglet « Variables ».
+# Ce ne sont PAS des secrets : le numéro WhatsApp est de toute façon visible sur le site.
+name: Publier le site
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Tests
+        run: npm test
+      - name: Générer le site statique
+        env:
+          WHATSAPP_NUMBER: ${{ vars.WHATSAPP_NUMBER }}
+          BRAND_NAME: ${{ vars.BRAND_NAME }}
+          INSTAGRAM_HANDLE: ${{ vars.INSTAGRAM_HANDLE }}
+          CONTACT_EMAIL: ${{ vars.CONTACT_EMAIL }}
+          ORDER_PREFIX: ${{ vars.ORDER_PREFIX }}
+          DELIVERY_MODE: ${{ vars.DELIVERY_MODE }}
+          DELIVERY_FLAT_FEE: ${{ vars.DELIVERY_FLAT_FEE }}
+          DEMO_MODE: ${{ vars.DEMO_MODE }}
+          CUSTOM_SITE_URL: ${{ vars.SITE_URL }}
+        run: |
+          OWNER="${GITHUB_REPOSITORY_OWNER,,}"
+          REPO="${GITHUB_REPOSITORY#*/}"
+          if [ -n "$CUSTOM_SITE_URL" ]; then
+            export SITE_URL="$CUSTOM_SITE_URL"          # domaine personnalisé
+          elif [ "${REPO,,}" = "$OWNER.github.io" ]; then
+            export SITE_URL="https://$OWNER.github.io" BASE_PATH=""
+          else
+            export SITE_URL="https://$OWNER.github.io/$REPO" BASE_PATH="/$REPO"
+          fi
+          node scripts/build-static.js
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

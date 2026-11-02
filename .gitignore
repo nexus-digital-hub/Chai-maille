@@ -1,0 +1,6 @@
+node_modules/
+.env
+storage/
+image-originals/
+.DS_Store
+dist/
